@@ -25,14 +25,7 @@
 #include <SDL.h>
 #include <SDL_syswm.h>
 
-#include "SDL13_compat_internal.h"
-
-//#include "video/SDL_sysvideo.h"
-//#include "video/SDL_pixels_c.h"
-//#include "render/SDL_yuv_sw_c.h"
-
 #include "SDL_compat.h"
-
 
 static SDL_Window *SDL_VideoWindow = NULL;
 static SDL_Surface *SDL_WindowSurface = NULL;
@@ -46,7 +39,7 @@ static char *wm_title = NULL;
 static SDL_Surface *SDL_VideoIcon;
 static int SDL_enabled_UNICODE = 0;
 
-/* Lifted from SDL 1.3 */
+/* === Lifted from SDL 1.3 === */
 
 /* 
  * Calculate the pad-aligned scanline width of a surface
@@ -71,6 +64,108 @@ SDL_CalculatePitch(SDL_Surface * surface)
     pitch = (pitch + 3) & ~3;   /* 4-byte aligning */
     return (pitch);
 }
+
+
+
+/* === Lifted from SDL 2.0 === */
+
+/*
+ * Calculate an 8-bit (3 red, 3 green, 2 blue) dithered palette of colors
+ */
+void
+SDL_DitherColors(SDL_Color * colors, int bpp)
+{
+    int i;
+    if (bpp != 8)
+        return;                 /* only 8bpp supported right now */
+
+    for (i = 0; i < 256; i++) {
+        int r, g, b;
+        /* map each bit field to the full [0, 255] interval,
+           so 0 is mapped to (0, 0, 0) and 255 to (255, 255, 255) */
+        r = i & 0xe0;
+        r |= r >> 3 | r >> 6;
+        colors[i].r = r;
+        g = (i << 3) & 0xe0;
+        g |= g >> 3 | g >> 6;
+        colors[i].g = g;
+        b = i & 0x3;
+        b |= b << 2;
+        b |= b << 4;
+        colors[i].b = b;
+        colors[i].a = SDL_ALPHA_OPAQUE;
+    }
+}
+
+/* Yuck -- sorry about this...
+ * Needed for SDL_InvalidateMap().
+ * Extremely fragile etc... but unchanged in 1.3/2.0
+ */
+
+typedef struct
+{
+    Uint8 *src;
+    int src_w, src_h;
+    int src_pitch;
+    int src_skip;
+    Uint8 *dst;
+    int dst_w, dst_h;
+    int dst_pitch;
+    int dst_skip;
+    SDL_PixelFormat *src_fmt;
+    SDL_PixelFormat *dst_fmt;
+    Uint8 *table;
+    int flags;
+    Uint32 colorkey;
+    Uint8 r, g, b, a;
+} SDL_BlitInfo;
+
+typedef void (SDLCALL * SDL_BlitFunc) (SDL_BlitInfo * info);
+
+typedef struct
+{
+    Uint32 src_format;
+    Uint32 dst_format;
+    int flags;
+    int cpu;
+    SDL_BlitFunc func;
+} SDL_BlitFuncEntry;
+
+/* Blit mapping definition */
+typedef struct SDL_BlitMap
+{
+    SDL_Surface *dst;
+    int identity;
+    SDL_blit blit;
+    void *data;
+    SDL_BlitInfo info;
+
+    /* the version count matches the destination; mismatch indicates
+       an invalid mapping */
+    Uint32 dst_palette_version;
+    Uint32 src_palette_version;
+} SDL_BlitMap;
+
+void
+SDL_InvalidateMap(SDL_BlitMap * map)
+{
+    if (!map) {
+        return;
+    }
+    if (map->dst) {
+        /* Release our reference to the surface - see the note below */
+        if (--map->dst->refcount <= 0) {
+            SDL_FreeSurface(map->dst);
+        }
+    }
+    map->dst = NULL;
+    map->src_palette_version = 0;
+    map->dst_palette_version = 0;
+    SDL_free(map->info.table);
+    map->info.table = NULL;
+}
+
+/* ===========================  */
 
 const char *
 SDL_AudioDriverName(char *namebuf, int maxlen)
@@ -136,7 +231,7 @@ SDL_VideoModeOK(int width, int height, int bpp, Uint32 flags)
 {
     int i, actual_bpp = 0;
 
-    if (!SDL_GetVideoDevice()) {
+    if (!SDL_WasInit(SDL_INIT_VIDEO)) {
         return 0;
     }
 
@@ -167,7 +262,7 @@ SDL_ListModes(const SDL_PixelFormat * format, Uint32 flags)
     int i, nmodes;
     SDL_Rect **modes;
 
-    if (!SDL_GetVideoDevice()) {
+    if (!SDL_WasInit(SDL_INIT_VIDEO)) {
         return NULL;
     }
 
@@ -500,7 +595,7 @@ SDL_SetVideoMode(int width, int height, int bpp, Uint32 flags)
     Uint32 window_flags;
     Uint32 surface_flags;
 
-    if (!SDL_GetVideoDevice()) {
+    if (!SDL_WasInit(SDL_INIT_VIDEO)) {
         if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_NOPARACHUTE) < 0) {
             return NULL;
         }
