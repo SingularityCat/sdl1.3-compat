@@ -1050,210 +1050,44 @@ SDL_GetWMInfo(SDL_SysWMinfo * info)
     return SDL_GetWindowWMInfo(SDL_VideoWindow, info);
 }
 
-// TODO: Reimplement without SDL internals.
-// As the Overlay stuff is rarely used in games,
-// I've just disabled it for now.
-
-#if 0
-
-struct private_yuvhwdata
-{
-    SDL_SW_YUVTexture *texture;
-    SDL_Surface *display;
-    Uint32 display_format;
-};
+// TODO: Implement this.
+// As the overlay stuff isn't used in Trine 2 (the reason I'm doing this),
+//  I've stubbed it out.
 
 SDL_Overlay *
 SDL_CreateYUVOverlay(int w, int h, Uint32 format, SDL_Surface * display)
 {
-    SDL_Overlay *overlay;
-    Uint32 texture_format;
-    SDL_SW_YUVTexture *texture;
-
-    if ((display->flags & SDL_OPENGL) == SDL_OPENGL) {
-        SDL_SetError("YUV overlays are not supported in OpenGL mode");
-        return NULL;
-    }
-
-    if (display != SDL_PublicSurface) {
-        SDL_SetError("YUV display is only supported on the screen surface");
-        return NULL;
-    }
-
-    switch (format) {
-    case SDL_YV12_OVERLAY:
-        texture_format = SDL_PIXELFORMAT_YV12;
-        break;
-    case SDL_IYUV_OVERLAY:
-        texture_format = SDL_PIXELFORMAT_IYUV;
-        break;
-    case SDL_YUY2_OVERLAY:
-        texture_format = SDL_PIXELFORMAT_YUY2;
-        break;
-    case SDL_UYVY_OVERLAY:
-        texture_format = SDL_PIXELFORMAT_UYVY;
-        break;
-    case SDL_YVYU_OVERLAY:
-        texture_format = SDL_PIXELFORMAT_YVYU;
-        break;
-    default:
-        SDL_SetError("Unknown YUV format");
-        return NULL;
-    }
-
-    overlay = (SDL_Overlay *) SDL_malloc(sizeof(*overlay));
-    if (!overlay) {
-        SDL_OutOfMemory();
-        return NULL;
-    }
-    SDL_zerop(overlay);
-
-    overlay->hwdata =
-        (struct private_yuvhwdata *) SDL_malloc(sizeof(*overlay->hwdata));
-    if (!overlay->hwdata) {
-        SDL_free(overlay);
-        SDL_OutOfMemory();
-        return NULL;
-    }
-
-    texture = SDL_SW_CreateYUVTexture(texture_format, w, h);
-    if (!texture) {
-        SDL_free(overlay->hwdata);
-        SDL_free(overlay);
-        return NULL;
-    }
-    overlay->hwdata->texture = texture;
-    overlay->hwdata->display = NULL;
-    overlay->hwdata->display_format = SDL_PIXELFORMAT_UNKNOWN;
-
-    overlay->format = format;
-    overlay->w = w;
-    overlay->h = h;
-    if (format == SDL_YV12_OVERLAY || format == SDL_IYUV_OVERLAY) {
-        overlay->planes = 3;
-    } else {
-        overlay->planes = 1;
-    }
-    overlay->pitches = texture->pitches;
-    overlay->pixels = texture->planes;
-
-    return overlay;
+    SDL_SetError("YUV overlays are not implemented in this version of SDL.");
+    return NULL;
 }
 
 int
 SDL_LockYUVOverlay(SDL_Overlay * overlay)
 {
-    SDL_Rect rect;
-    void *pixels;
-    int pitch;
-
-    if (!overlay) {
-        SDL_SetError("Passed a NULL overlay");
-        return -1;
-    }
-
-    rect.x = 0;
-    rect.y = 0;
-    rect.w = overlay->w;
-    rect.h = overlay->h;
-
-    if (SDL_SW_LockYUVTexture(overlay->hwdata->texture, &rect, &pixels, &pitch) < 0) {
-        return -1;
-    }
-
-    overlay->pixels[0] = (Uint8 *) pixels;
-    overlay->pitches[0] = pitch;
-    switch (overlay->format) {
-    case SDL_YV12_OVERLAY:
-    case SDL_IYUV_OVERLAY:
-        overlay->pitches[1] = pitch / 2;
-        overlay->pitches[2] = pitch / 2;
-        overlay->pixels[1] =
-            overlay->pixels[0] + overlay->pitches[0] * overlay->h;
-        overlay->pixels[2] =
-            overlay->pixels[1] + overlay->pitches[1] * overlay->h / 2;
-        break;
-    case SDL_YUY2_OVERLAY:
-    case SDL_UYVY_OVERLAY:
-    case SDL_YVYU_OVERLAY:
-        break;
-    }
-    return 0;
+    SDL_SetError("YUV overlays are not implemented in this version of SDL.");
+    return -1;
 }
 
 void
 SDL_UnlockYUVOverlay(SDL_Overlay * overlay)
 {
-    if (!overlay) {
-        return;
-    }
-
-    SDL_SW_UnlockYUVTexture(overlay->hwdata->texture);
+    SDL_SetError("YUV overlays are not implemented in this version of SDL.");
+    return;
 }
 
 int
 SDL_DisplayYUVOverlay(SDL_Overlay * overlay, SDL_Rect * dstrect)
 {
-    SDL_Surface *display;
-    SDL_Rect src_rect;
-    SDL_Rect dst_rect;
-    void *pixels;
-
-    if (!overlay || !dstrect) {
-        SDL_SetError("Passed a NULL overlay or dstrect");
-        return -1;
-    }
-
-    display = overlay->hwdata->display;
-    if (display != SDL_VideoSurface) {
-        overlay->hwdata->display = display = SDL_VideoSurface;
-        overlay->hwdata->display_format = SDL_MasksToPixelFormatEnum(
-                                                display->format->BitsPerPixel,
-                                                display->format->Rmask,
-                                                display->format->Gmask,
-                                                display->format->Bmask,
-                                                display->format->Amask);
-    }
-
-    src_rect.x = 0;
-    src_rect.y = 0;
-    src_rect.w = overlay->w;
-    src_rect.h = overlay->h;
-
-    if (!SDL_IntersectRect(&display->clip_rect, dstrect, &dst_rect)) {
-        return 0;
-    }
-     
-    pixels = (void *)((Uint8 *)display->pixels +
-                        dst_rect.y * display->pitch +
-                        dst_rect.x * display->format->BytesPerPixel);
-
-    if (SDL_SW_CopyYUVToRGB(overlay->hwdata->texture, &src_rect,
-                            overlay->hwdata->display_format,
-                            dst_rect.w, dst_rect.h,
-                            pixels, display->pitch) < 0) {
-        return -1;
-    }
-    SDL_UpdateWindowSurface(SDL_VideoWindow);
-    return 0;
+    SDL_SetError("YUV overlays are not implemented in this version of SDL.");
+    return -1;
 }
 
 void
 SDL_FreeYUVOverlay(SDL_Overlay * overlay)
 {
-    if (!overlay) {
-        return;
-    }
-    if (overlay->hwdata) {
-        if (overlay->hwdata->texture) {
-            SDL_SW_DestroyYUVTexture(overlay->hwdata->texture);
-        }
-        SDL_free(overlay->hwdata);
-    }
-    SDL_free(overlay);
+    SDL_SetError("YUV overlays are not implemented in this version of SDL.");
+    return;
 }
-
-#endif
 
 void
 SDL_GL_SwapBuffers(void)
