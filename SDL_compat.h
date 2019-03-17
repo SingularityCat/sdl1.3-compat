@@ -30,19 +30,7 @@
  *  This file contains functions for backwards compatibility with SDL 1.2.
  */
 
-/**
- *  \def SDL_NO_COMPAT
- *
- *  #define SDL_NO_COMPAT to prevent SDL_compat.h from being included.
- *  SDL_NO_COMPAT is intended to make it easier to covert SDL 1.2 code to
- *  SDL 1.3/2.0.
- */
-
  /*@}*/
-
-#ifdef SDL_NO_COMPAT
-#define _SDL_compat_h
-#endif
 
 #ifndef _SDL_compat_h
 #define _SDL_compat_h
@@ -68,6 +56,10 @@ extern "C" {
 #undef __WIN32__
 #define __WIN32__   1
 #endif
+
+
+/* NOTE: SDL 2.0 defines this already - it has the same value */
+#undef SDL_SWSURFACE
 
 /**
  *  \name Surface flags
@@ -96,9 +88,26 @@ extern "C" {
 #define SDL_LOGPAL 0x01
 #define SDL_PHYSPAL 0x02
 
+/* Excerpt from SDL 1.3's SDL_events.h:
+typedef enum
+{
+...
+    SDL_EVENT_COMPAT1 = 0x7000,
+    SDL_EVENT_COMPAT2,
+    SDL_EVENT_COMPAT3,
+...
+} SDL_EventType;
+
+SDL 1.3's SDL_compat.h originally had this:
+
 #define SDL_ACTIVEEVENT	SDL_EVENT_COMPAT1
 #define SDL_VIDEORESIZE	SDL_EVENT_COMPAT2
 #define SDL_VIDEOEXPOSE	SDL_EVENT_COMPAT3
+*/
+
+#define SDL_ACTIVEEVENT	0x7000
+#define SDL_VIDEORESIZE	0x7001
+#define SDL_VIDEOEXPOSE	0x7002
 #define SDL_ACTIVEEVENTMASK	SDL_ACTIVEEVENT, SDL_ACTIVEEVENT
 #define SDL_VIDEORESIZEMASK SDL_VIDEORESIZE, SDL_VIDEORESIZE
 #define SDL_VIDEOEXPOSEMASK SDL_VIDEOEXPOSE, SDL_VIDEOEXPOSE
@@ -130,6 +139,33 @@ extern "C" {
 
 #define SDL_DEFAULT_REPEAT_DELAY	500
 #define SDL_DEFAULT_REPEAT_INTERVAL	30
+
+/* Lifted from SDL 1.3's SDL_events.h */
+
+typedef struct SDL_ActiveEvent
+{
+    Uint32 type;
+    Uint32 timestamp;
+    Uint8 gain;
+    Uint8 state;
+} SDL_ActiveEvent;
+
+typedef struct SDL_ResizeEvent
+{
+    Uint32 type;
+    Uint32 timestamp;
+    int w;
+    int h;
+} SDL_ResizeEvent;
+
+
+typedef union SDL_Event_Compat
+{
+    union SDL_Event;
+    SDL_ActiveEvent active;
+    SDL_ResizeEvent resize;
+} SDL_Event_Compat;
+
 
 typedef struct SDL_VideoInfo
 {
