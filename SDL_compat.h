@@ -140,33 +140,6 @@ SDL 1.3's SDL_compat.h originally had this:
 #define SDL_DEFAULT_REPEAT_DELAY	500
 #define SDL_DEFAULT_REPEAT_INTERVAL	30
 
-/* Lifted from SDL 1.3's SDL_events.h */
-
-typedef struct SDL_ActiveEvent
-{
-    Uint32 type;
-    Uint32 timestamp;
-    Uint8 gain;
-    Uint8 state;
-} SDL_ActiveEvent;
-
-typedef struct SDL_ResizeEvent
-{
-    Uint32 type;
-    Uint32 timestamp;
-    int w;
-    int h;
-} SDL_ResizeEvent;
-
-
-typedef union SDL_Event_Compat
-{
-    union SDL_Event;
-    SDL_ActiveEvent active;
-    SDL_ResizeEvent resize;
-} SDL_Event_Compat;
-
-
 typedef struct SDL_VideoInfo
 {
     Uint32 hw_available:1;

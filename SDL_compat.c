@@ -1,3 +1,5 @@
+/* Most of this file is from SDL 1.3. */
+
 /*
   Simple DirectMedia Layer
   Copyright (C) 1997-2012 Sam Lantinga <slouken@libsdl.org>
@@ -20,7 +22,7 @@
 */
 #include <SDL_config.h>
 
-/* This file contains functions for backwards compatibility with SDL 1.2 */
+/* This file contains functions for backwards compatibility with SDL ̶1̶.̶2 1.3 */
 
 #include <SDL.h>
 #include <SDL_syswm.h>
@@ -38,6 +40,19 @@ static SDL_Rect SDL_VideoViewport;
 static char *wm_title = NULL;
 static SDL_Surface *SDL_VideoIcon;
 static int SDL_enabled_UNICODE = 0;
+
+
+/* There are few API changes between 2.0 and 1.3, the main one is the removal
+ *  of this code, and changes to the mouse wheel event strucutre.
+ *
+ * Also: 
+ *  uint8_t (*SDL_GetMouseState)(int *, int*);
+ *
+ * became:
+ *  uint32_t (*SDL_GetMouseState)(int *, int*);
+ *
+ * But due to type promotions, these are the same on 32-bit x86 anyway.
+ */
 
 /* === Lifted from SDL 1.3 === */
 
@@ -165,7 +180,7 @@ SDL_InvalidateMap(SDL_BlitMap * map)
     map->info.table = NULL;
 }
 
-/* ===========================  */
+/* =========================== */
 
 const char *
 SDL_AudioDriverName(char *namebuf, int maxlen)
@@ -321,6 +336,62 @@ SDL_ListModes(const SDL_PixelFormat * format, Uint32 flags)
     return modes;
 }
 
+/* === Event handling === */
+
+/* The SDL_MouseWheelEvent structure changed in SDL2.
+ * The same ID is used, but the new structure is bigger.
+ */
+
+// typedef struct SDL_MouseWheelEvent
+// {
+//     Uint32 type;        /**< ::SDL_MOUSEWHEEL */
+//     Uint32 timestamp;   /**< In milliseconds, populated using SDL_GetTicks() */
+//     Uint32 windowID;    /**< The window with mouse focus, if any */
+//     Uint32 which;       /**< The mouse instance id, or SDL_TOUCH_MOUSEID */
+//     Sint32 x;           /**< The amount scrolled horizontally, positive to the right and negative to the left */
+//     Sint32 y;           /**< The amount scrolled vertically, positive away from the user and negative toward the user */
+//     Uint32 direction;   /**< Set to one of the SDL_MOUSEWHEEL_* defines. When FLIPPED the values in X and Y will be opposite. Multiply by -1 to change them back */
+// } SDL_MouseWheelEvent;
+
+
+/* Note: some pre-releases of 1.3 had windowID in this structure. */
+
+typedef struct SDL_MouseWheelEvent_1_3
+{
+    Uint32 type;
+    Uint32 timestamp;
+    /* Uint32 windowID; */
+    int x;
+    int y;
+} SDL_MouseWheelEvent_1_3;
+
+/* Lifted from SDL 1.3's SDL_events.h */
+
+typedef struct SDL_ActiveEvent
+{
+    Uint32 type;
+    Uint32 timestamp;
+    Uint8 gain;
+    Uint8 state;
+} SDL_ActiveEvent;
+
+typedef struct SDL_ResizeEvent
+{
+    Uint32 type;
+    Uint32 timestamp;
+    int w;
+    int h;
+} SDL_ResizeEvent;
+
+
+typedef union SDL_Event_Compat
+{
+    union SDL_Event;
+    SDL_MouseWheelEvent_1_3 wheel_1_3;
+    SDL_ActiveEvent active;
+    SDL_ResizeEvent resize;
+} SDL_Event_Compat;
+
 static int
 SDL_CompatEventFilter(void *userdata, SDL_Event * event)
 {
@@ -456,6 +527,13 @@ SDL_CompatEventFilter(void *userdata, SDL_Event * event)
             fake.type = SDL_MOUSEBUTTONUP;
             fake.button.state = SDL_RELEASED;
             SDL_PushEvent((SDL_Event *) &fake);
+
+            /* Convert to SDL 1.3 style event. */
+            /* reuse x and y */
+            x = event->wheel.x;
+            y = event->wheel.y;
+            ((SDL_Event_Compat *) event)->wheel_1_3.x = x;
+            ((SDL_Event_Compat *) event)->wheel_1_3.y = y;
             break;
         }
 
